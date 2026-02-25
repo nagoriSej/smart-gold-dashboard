@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Gold Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+:root{
+  --gold:#d4af37;
+  --dark:#0f172a;
+  --card:#111827;
+  --light:#e5e7eb;
+}
+body{
+  margin:0;
+  font-family:system-ui,Segoe UI,Roboto,sans-serif;
+  background:linear-gradient(135deg,#020617,#0f172a);
+  color:var(--light);
+}
+header{
+  display:flex;
+  justify-content:space-between;
+  padding:18px 28px;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+}
+h1{color:var(--gold);margin:0;font-size:22px}
+.container{max-width:1200px;margin:auto;padding:25px}
+.grid{display:grid;gap:18px}
+.cards{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.card{
+  background:var(--card);
+  padding:18px;
+  border-radius:14px;
+  box-shadow:0 6px 16px rgba(0,0,0,.4);
+}
+.price{font-size:22px;color:var(--gold);font-weight:600}
+.section{margin-top:30px}
+.section-title{margin-bottom:12px;color:var(--gold)}
+.split{grid-template-columns:1fr 1fr}
+input,select{
+  width:100%;padding:8px;margin:6px 0 12px;
+  border-radius:6px;border:none;background:#020617;color:white
+}
+button{
+  background:var(--gold);color:black;border:none;
+  padding:10px 14px;border-radius:8px;font-weight:600;cursor:pointer
+}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+footer{text-align:center;padding:25px;color:#6b7280}
+canvas{background:#020617;border-radius:12px;padding:10px}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>🥇 Smart Gold Dashboard</h1>
+  <div id="clock"></div>
+</header>
+
+<div class="container">
+
+<!-- MARKET -->
+<div class="grid cards">
+  <div class="card"><h3>24K Gold ₹/g</h3><div class="price" id="goldPrice">--</div></div>
+  <div class="card"><h3>MCX Futures</h3><div class="price" id="mcxPrice">--</div></div>
+  <div class="card"><h3>USD Price</h3><div class="price" id="usdPrice">--</div></div>
+  <div class="card"><h3>Day Change</h3><div class="price" id="change">--</div></div>
+</div>
+
+<!-- CHART -->
+<div class="section">
+  <div class="section-title">Live Gold Trend</div>
+  <canvas id="goldChart" height="120"></canvas>
+</div>
+
+<!-- TOOLS -->
+<div class="section grid split">
+
+<!-- JEWELRY -->
+<div class="card">
+<div class="section-title">Jewelry Calculator</div>
+Making Charges %
+<input id="making" type="number" value="12">
+GST %
+<input id="gst" type="number" value="3">
+<button onclick="calcJewelry()">Calculate</button>
+<p id="jewelResult">--</p>
+</div>
+
+<!-- ADD ASSET -->
+<div class="card">
+<div class="section-title">Add Gold Asset</div>
+
+Type
+<select id="type">
+  <option value="physical">Physical Gold (grams)</option>
+  <option value="etf">Gold ETF (₹ invested)</option>
+  <option value="sgb">SGB (grams)</option>
+</select>
+
+Quantity
+<input id="qty" type="number">
+
+Buy price ₹/g (ETF = avg gold price when bought)
+<input id="buy">
+
+Interest % (SGB default 2.5)
+<input id="rate" value="2.5">
+
+<button onclick="addAsset()">Add Asset</button>
+</div>
+
+</div>
+
+<!-- PORTFOLIO -->
+<div class="section">
+<div class="section-title">My Portfolio</div>
+<div class="card">
+<table id="portfolioTable">
+<tr><th>Type</th><th>Qty</th><th>Value</th><th>P/L</th></tr>
+</table>
+</div>
+</div>
+
+</div>
+
+<footer>Live data refresh every 60s • Portfolio Project</footer>
+
+<script>
+const API_KEY="goldapi-317fkxsmm1tbdqq-io";
+let livePrice=0;
+
+// CLOCK
+setInterval(()=>clock.innerText=new Date().toLocaleTimeString(),1000);
+
+// FETCH GOLD
+async function fetchGold(){
+ const r=await fetch("https://www.goldapi.io/api/XAU/INR",{
+   headers:{ "x-access-token":API_KEY }
+ });
+ const d=await r.json();
+
+ livePrice=d.price_gram_24k;
+ goldPrice.innerText="₹ "+livePrice.toFixed(0);
+ change.innerText=d.chp.toFixed(2)+"%";
+ usdPrice.innerText="$ "+d.price.toFixed(0);
+
+ // MCX proxy (spot * contract size + premium)
+ mcxPrice.innerText="₹ "+(livePrice*1000*1.02).toFixed(0);
+
+ updateChart(livePrice);
+ updatePortfolio();
+}
+fetchGold();
+setInterval(fetchGold,60000);
+
+// CHART
+let prices=[],labels=[];
+let chart=new Chart(goldChart,{
+ type:"line",
+ data:{labels:labels,datasets:[{label:"Gold ₹/g",data:prices}]},
+ options:{responsive:true}
+});
+function updateChart(p){
+ if(prices.length>30){prices.shift();labels.shift();}
+ prices.push(p);
+ labels.push(new Date().toLocaleTimeString());
+ chart.update();
+}
+
+// JEWELRY CALC
+function calcJewelry(){
+ let m=parseFloat(making.value||0);
+ let g=parseFloat(gst.value||0);
+ let cost=livePrice*(1+m/100)*(1+g/100);
+ jewelResult.innerText="Estimated purchase price: ₹ "+cost.toFixed(0);
+}
+
+// ADD ASSET
+function addAsset(){
+ let arr=JSON.parse(localStorage.gold||"[]");
+ arr.push({
+   type:type.value,
+   qty:parseFloat(qty.value),
+   buy:parseFloat(buy.value||livePrice),
+   rate:parseFloat(rate.value||2.5),
+   date:Date.now()
+ });
+ localStorage.gold=JSON.stringify(arr);
+ updatePortfolio();
+}
+
+// UPDATE PORTFOLIO
+function updatePortfolio(){
+ let arr=JSON.parse(localStorage.gold||"[]");
+ portfolioTable.innerHTML="<tr><th>Type</th><th>Qty</th><th>Value</th><th>P/L</th></tr>";
+
+ arr.forEach(a=>{
+   let value=0,pl=0;
+
+   if(a.type==="physical"){
+     value=a.qty*livePrice;
+     pl=value-(a.qty*a.buy);
+   }
+
+   if(a.type==="etf"){
+     let ratio=livePrice/a.buy;
+     value=a.qty*ratio;
+     pl=value-a.qty;
+   }
+
+   if(a.type==="sgb"){
+     let years=(Date.now()-a.date)/(1000*60*60*24*365);
+     let interest=a.qty*a.buy*(a.rate/100)*years;
+     value=(a.qty*livePrice)+interest;
+     pl=value-(a.qty*a.buy);
+   }
+
+   portfolioTable.innerHTML+=
+     `<tr><td>${a.type.toUpperCase()}</td>
+      <td>${a.qty}</td>
+      <td>${value.toFixed(0)}</td>
+      <td>${pl.toFixed(0)}</td></tr>`;
+ });
+}
+updatePortfolio();
+</script>
+
+</body>
+</html>
