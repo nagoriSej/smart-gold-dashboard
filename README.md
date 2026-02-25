@@ -57,7 +57,7 @@ Built as a portfolio project to demonstrate:
 ---
 
 ## 🔗 Live Demo
-(https://nagoriSej.github.io/smart-gold-dashboard/)
+https://nagorisej.github.io/smart-gold-dashboard/
 
 ---
 
